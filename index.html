@@ -1,0 +1,161 @@
+<!--
+Структура кода и функции:
+v-scope="refractionDemo()" Инициализация реактивного состояния для блока демо
+n1, n2, angleInc           Number, реактивные свойства для ползунков
+rays                       Array<{angleOffset: number}>, массив всех лучей
+newRayAngle                Number, угол для новых лучей
+angleError                 String, сообщение об ошибке при вводе угла
+addRay()                   Функция добавления нового луча, использует newRayAngle
+removeRay()                Функция удаления последнего луча
+validateAngle()            Проверка допустимого диапазона newRayAngle
+getColor(n)                Возвращает цвет верхней/нижней среды в зависимости от показателя преломления
+draw()                     Рисует верхнюю и нижнюю среду и все лучи на canvas
+mounted()                  Вызывается при монтировании, чтобы сразу отрисовать начальный вид
+<canvas>                   Элемент для визуализации лучей и сред
+-->
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Преломление света - демо</title>
+<script src="https://unpkg.com/petite-vue" defer></script>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; }
+canvas { border: 1px solid #000; display: block; margin-top: 10px; }
+label { display: block; margin: 5px 0; }
+input[type=range], input[type=number] { width: 300px; }
+button { margin: 5px; }
+input.error { border: 2px solid red; }
+p.explanation { margin: 0 0 10px 20px; font-size: 0.9em; color: #555; }
+span.error-message { color: red; font-size: 0.9em; margin-left: 5px; }
+</style>
+</head>
+<body>
+
+<h1>Явление преломления света</h1>
+
+<p>Преломление света — это изменение направления распространения светового луча при переходе из одной среды в другую.</p>
+<p><strong>Закон Снеллиуса:</strong> n₁ sin θ₁ = n₂ sin θ₂</p>
+
+<div v-scope="refractionDemo()">
+  <label>
+    Показатель преломления первой среды (n1):
+    <input type="range" v-model.number="n1" min="1" max="2" step="0.01" @input="draw()">
+    {{ n1 }}
+  </label>
+  <p class="explanation">
+    Первая среда — это среда, из которой падает луч (например, воздух).
+  </p>
+
+  <label>
+    Показатель преломления второй среды (n2):
+    <input type="range" v-model.number="n2" min="1" max="2" step="0.01" @input="draw()">
+    {{ n2 }}
+  </label>
+  <p class="explanation">
+    Вторая среда — это среда, в которую входит луч (например, вода или стекло).
+  </p>
+
+  <label>
+    Угол падения (°):
+    <input type="range" v-model.number="angleInc" min="0" max="85" @input="draw()">
+    {{ angleInc }}
+  </label>
+
+  <label>
+    Угол отклонения дополнительных лучей (°):
+    <input type="number" v-model.number="newRayAngle" :min="-45" :max="45" @input="validateAngle()">
+    {{ newRayAngle }}
+    <span v-if="angleError" class="error-message">{{ angleError }}</span>
+  </label>
+
+  <button @click="addRay()">Добавить луч +</button>
+  <button @click="removeRay()">Удалить луч -</button>
+
+  <canvas id="canvas" width="500" height="300"></canvas>
+</div>
+
+<footer>
+<p>Имя: Полина | Группа: 241-3210</p>
+</footer>
+
+<script>
+function refractionDemo() {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  return {
+    n1: 1.0,
+    n2: 1.5,
+    angleInc: 30,
+    rays: [{angleOffset: 0}],
+    newRayAngle: 5,
+    angleError: '',
+
+    addRay() {
+      if(this.angleError) return;
+      if(this.rays.length < 5) this.rays.push({angleOffset: this.newRayAngle});
+      this.draw();
+    },
+    removeRay() {
+      if(this.rays.length > 1) this.rays.pop();
+      this.draw();
+    },
+    validateAngle() {
+      if(this.newRayAngle < -45) {
+        this.angleError = 'Угол не может быть меньше -45°';
+      } else if(this.newRayAngle > 45) {
+        this.angleError = 'Угол не может быть больше 45°';
+      } else {
+        this.angleError = '';
+      }
+    },
+    getColor(n) {
+      const gray = Math.floor(255 - (n-1)*100);
+      return `rgb(${gray},${gray},255)`;
+    },
+    draw() {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0,0,w,h);
+
+      ctx.fillStyle = this.getColor(this.n1);
+      ctx.fillRect(0,0,w,h/2);
+
+      ctx.fillStyle = this.getColor(this.n2);
+      ctx.fillRect(0,h/2,w,h/2);
+
+      this.rays.forEach((ray,i)=>{
+        const theta1 = (this.angleInc + ray.angleOffset) * Math.PI/180;
+        let sinTheta2 = (this.n1/this.n2)*Math.sin(theta1);
+        sinTheta2 = Math.max(-1,Math.min(1,sinTheta2));
+        const theta2 = Math.asin(sinTheta2);
+
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        const len = 100;
+        const x0 = 50+i*30, y0 = h/2-100;
+        const x1 = x0+len*Math.tan(theta1), y1 = h/2;
+        const x2 = x1+len*Math.tan(theta2), y2 = h/2+len;
+
+        ctx.moveTo(x0,y0);
+        ctx.lineTo(x1,y1);
+        ctx.lineTo(x2,y2);
+        ctx.stroke();
+      });
+    },
+    mounted() {
+      this.draw();
+    }
+  }
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  PetiteVue.createApp().mount();
+});
+</script>
+</body>
+</html>
